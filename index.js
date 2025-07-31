@@ -85,15 +85,10 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// =======================================================
-// DIUBAH: Inisialisasi Client untuk Hosting
-// =======================================================
 const client = new Client({
-  // 1. Menggunakan LocalAuth untuk menyimpan sesi secara permanen
   authStrategy: new LocalAuth({
-    dataPath: "sessions", // Nama folder untuk menyimpan sesi
+    dataPath: "sessions",
   }),
-  // 2. Opsi Puppeteer untuk lingkungan server (seperti Render.com)
   puppeteer: {
     headless: true,
     args: [
@@ -103,7 +98,7 @@ const client = new Client({
       "--disable-accelerated-2d-canvas",
       "--no-first-run",
       "--no-zygote",
-      "--single-process", // Membantu di environment dengan RAM rendah
+      "--single-process",
       "--disable-gpu",
     ],
   },
@@ -111,9 +106,54 @@ const client = new Client({
 
 console.log("🤖 Bot sedang dinyalakan...");
 
-client.on("qr", (qr) => {
+// =======================================================
+// DIUBAH TOTAL: Logika QR Code dibuat lebih canggih
+// =======================================================
+client.on("qr", async (qr) => {
+  console.log("📱 QR Code diterima, mencoba menampilkannya...");
+
+  // Opsi 1: Tetap coba tampilkan di terminal
   qrcode_terminal.generate(qr, { small: true });
-  console.log("📱 Silakan scan QR Code di atas dengan aplikasi WhatsApp Anda.");
+  console.log(
+    "📱 Silakan coba scan QR Code di atas. Jika pecah, gunakan link di bawah ini."
+  );
+
+  // Opsi 2 (Cadangan Pasti Berhasil): Buat gambar QR dan unggah
+  try {
+    const qrImage = await QRCode.toDataURL(qr);
+    const base64Data = qrImage.replace(/^data:image\/png;base64,/, "");
+
+    const formData = new FormData();
+    // Kunci API publik untuk layanan freeimage.host
+    formData.append("key", "6d207e02198a847aa98d0a2a901485a5");
+    formData.append("action", "upload");
+    formData.append("source", base64Data);
+    formData.append("format", "json");
+
+    const response = await axios.post(
+      "https://freeimage.host/api/1/upload",
+      formData,
+      {
+        headers: formData.getHeaders(),
+      }
+    );
+
+    if (response.data.status_code === 200) {
+      const imageUrl = response.data.image.url;
+      console.log(
+        "================================================================"
+      );
+      console.log(
+        "‼️ JIKA QR DI ATAS PECAH, BUKA LINK INI DI BROWSER UNTUK SCAN:"
+      );
+      console.log(imageUrl);
+      console.log(
+        "================================================================"
+      );
+    }
+  } catch (err) {
+    console.error("Gagal membuat atau mengunggah link QR Code:", err.message);
+  }
 });
 
 client.on("ready", () => {
@@ -121,11 +161,11 @@ client.on("ready", () => {
 });
 
 client.on("message", async (message) => {
+  // ... Sisa kode tidak ada perubahan, semua logika fitur tetap sama ...
   const user = message.from;
   const body = message.body;
   const lowerBody = body.toLowerCase();
 
-  // ... (Sisa kode tidak ada perubahan, semua logika fitur tetap sama) ...
   if (
     userChoices[user] &&
     userChoices[user].choice === "sticker_confirmation"
@@ -200,7 +240,6 @@ client.on("message", async (message) => {
     return;
   }
 
-  // Bagian Menu Interaktif
   if (!message.hasMedia) {
     if (body === "!start") {
       delete userChoices[user];
