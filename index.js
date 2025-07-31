@@ -40,7 +40,6 @@ const FUN_FACTS = [
   "Katak tidak bisa muntah. Jika harus, ia akan memuntahkan seluruh isi perutnya.",
 ];
 
-// DIUBAH: Menu disederhanakan, hanya berisi fitur yang 100% berfungsi
 const menuText = `
 🤖 *Halo! Ini Menu Ajaib Bot Stabil* ✨
 
@@ -143,8 +142,35 @@ client.on("message", async (message) => {
   const user = message.from;
   const body = message.body;
   const lowerBody = body.toLowerCase();
+  const chat = await message.getChat();
 
-  // ... (Logika percakapan, gempa, qrcode, fakta tidak diubah) ...
+  // =======================================================
+  // DIUBAH TOTAL: Logika Pemicu Bot
+  // =======================================================
+  const mentions = await message.getMentions();
+  const botIsMentioned = mentions.some((contact) => contact.isMe);
+  const isCommand =
+    body.startsWith("!") ||
+    lowerBody === "info ngopi kang?" ||
+    lowerBody === "inpo ngopi kang?" ||
+    lowerBody === "kata katane piye kang?";
+  const isPrivateChat = !chat.isGroup;
+
+  // Bot hanya akan memproses jika:
+  // 1. Ini adalah chat pribadi (bukan grup)
+  // 2. Bot di-mention di dalam grup
+  // 3. Pesan adalah sebuah perintah yang valid di dalam grup
+  if (!isPrivateChat && !botIsMentioned && !isCommand) {
+    return; // Abaikan pesan jika tidak memenuhi kriteria di grup
+  }
+
+  // Jika bot di-mention tanpa perintah, kirim menu sebagai bantuan
+  if (chat.isGroup && botIsMentioned && !isCommand) {
+    await message.reply(menuText);
+    return;
+  }
+
+  // ... Sisa kode tidak ada perubahan, semua logika fitur tetap sama ...
   if (lowerBody === "info ngopi kang?" || lowerBody === "inpo ngopi kang?") {
     await message.reply("hayu ngendi gasken 😎☕");
     return;
@@ -164,7 +190,7 @@ client.on("message", async (message) => {
       const imageUrl = `https://data.bmkg.go.id/DataMKG/TEWS/${gempa.Shakemap}`;
       const imageMedia = await MessageMedia.fromUrl(imageUrl);
       const caption = `\n🚨 *Info Gempa Terbaru* 🚨\nWaktu: ${gempa.Tanggal}, ${gempa.Jam}\nKekuatan: *${gempa.Magnitude} SR*\nKedalaman: ${gempa.Kedalaman}\nLokasi: ${gempa.Lintang} - ${gempa.Bujur}\nWilayah: *${gempa.Wilayah}*\nPotensi: *${gempa.Potensi}*\n            `;
-      await client.sendMessage(user, imageMedia, { caption: caption });
+      await message.reply(imageMedia, undefined, { caption: caption });
     } catch (err) {
       console.error("Error fetching earthquake info:", err);
       await message.reply("❌ Maaf, gagal mendapatkan info gempa dari BMKG.");
@@ -187,7 +213,7 @@ client.on("message", async (message) => {
         qrDataUrl.split(",")[1],
         "qrcode.png"
       );
-      await client.sendMessage(user, qrImage, {
+      await message.reply(qrImage, undefined, {
         caption: `Ini QR Code untuk teks:\n_"${text}"_`,
       });
     } catch (err) {
@@ -202,14 +228,12 @@ client.on("message", async (message) => {
     return;
   }
 
-  // Bagian Menu Interaktif
   if (!message.hasMedia) {
     if (body === "!start") {
       delete userChoices[user];
       await message.reply(menuText);
       return;
     }
-    // DIUBAH: Pilihan menu disesuaikan
     if (body === "1") {
       userChoices[user] = { choice: "photo_to_sticker" };
       await message.reply(
@@ -232,8 +256,9 @@ client.on("message", async (message) => {
       return;
     }
 
+    // Logika ini sekarang hanya akan berjalan jika bot di-mention atau di chat pribadi
     await message.reply(
-      `Waduh, perintah "*${body}*" yang kamu masukkan salah atau tidak ada di menu. Ketik *!start* lagi ya! 🤔`
+      `Waduh, perintah "*${body}*" yang kamu masukkan salah atau tidak ada di menu. Coba ketik *!start* lagi ya! 🤔`
     );
     return;
   }
@@ -241,9 +266,12 @@ client.on("message", async (message) => {
   if (message.hasMedia) {
     const userChoiceData = userChoices[user];
     if (!userChoiceData || !userChoiceData.choice) {
-      await message.reply(
-        "Eits, sebelum kirim file, pilih dulu mau konversi apa dengan ketik *!start* ya! 😉"
-      );
+      // Abaikan file yang dikirim jika tidak ada pilihan aktif, kecuali di chat pribadi
+      if (isPrivateChat) {
+        await message.reply(
+          "Eits, sebelum kirim file, pilih dulu mau konversi apa dengan ketik *!start* ya! 😉"
+        );
+      }
       return;
     }
     const userChoice = userChoiceData.choice;
@@ -259,7 +287,7 @@ client.on("message", async (message) => {
         await message.reply(
           "✨ Siap! Fotonya lagi dibikin jadi stiker. Tunggu sebentar..."
         );
-        await client.sendMessage(user, media, {
+        await message.reply(media, undefined, {
           sendMediaAsSticker: true,
           stickerAuthor: "Bot Ajaib ✨",
           stickerName: "Buatan Kamu",
@@ -301,9 +329,12 @@ client.on("message", async (message) => {
           );
         }
       } else {
-        await message.reply(
-          "❌ Oops! File yang Anda kirim tidak sesuai dengan pilihan di menu. Coba lagi ya!"
-        );
+        // Abaikan jika file tidak cocok dengan pilihan
+        if (isPrivateChat) {
+          await message.reply(
+            "❌ Oops! File yang Anda kirim tidak sesuai dengan pilihan di menu. Coba lagi ya!"
+          );
+        }
       }
     } catch (err) {
       console.error("--- TERJADI KESALAHAN DETAIL ---");
