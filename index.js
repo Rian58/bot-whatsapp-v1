@@ -1,7 +1,6 @@
 // index.js
 
 // Whatsapp & Utility
-// DIUBAH: Menambahkan LocalAuth untuk menyimpan sesi login
 const { Client, MessageMedia, LocalAuth } = require("whatsapp-web.js");
 const qrcode_terminal = require("qrcode-terminal");
 const fs = require("fs");
@@ -9,8 +8,6 @@ const path = require("path");
 const util = require("util");
 
 // Library Fitur
-const libre = require("libreoffice-convert");
-libre.convertAsync = util.promisify(libre.convert);
 const Tesseract = require("tesseract.js");
 const QRCode = require("qrcode");
 const jsQR = require("jsqr");
@@ -54,10 +51,10 @@ const menuText = `
 Pilih salah satu layanan di bawah ini, lalu kirimkan file yang sesuai:
 
 0️⃣. *PDF* ➔ *Word*
-    (Metode baru via API Online, kualitas tinggi!)
+    (via API Online)
 
 1️⃣. *Word* ➔ *PDF*
-    Ubah .docx jadi PDF.
+    (via API Online, Kualitas Tinggi!)
 
 2️⃣. *Foto* ➔ *Stiker*
     Buat stiker langsung dari fotomu.
@@ -106,25 +103,19 @@ const client = new Client({
 
 console.log("🤖 Bot sedang dinyalakan...");
 
-// =======================================================
-// DIUBAH TOTAL: Logika QR Code dibuat lebih canggih
-// =======================================================
 client.on("qr", async (qr) => {
   console.log("📱 QR Code diterima, mencoba menampilkannya...");
 
-  // Opsi 1: Tetap coba tampilkan di terminal
   qrcode_terminal.generate(qr, { small: true });
   console.log(
     "📱 Silakan coba scan QR Code di atas. Jika pecah, gunakan link di bawah ini."
   );
 
-  // Opsi 2 (Cadangan Pasti Berhasil): Buat gambar QR dan unggah
   try {
     const qrImage = await QRCode.toDataURL(qr);
     const base64Data = qrImage.replace(/^data:image\/png;base64,/, "");
 
     const formData = new FormData();
-    // Kunci API publik untuk layanan freeimage.host
     formData.append("key", "6d207e02198a847aa98d0a2a901485a5");
     formData.append("action", "upload");
     formData.append("source", base64Data);
@@ -161,7 +152,6 @@ client.on("ready", () => {
 });
 
 client.on("message", async (message) => {
-  // ... Sisa kode tidak ada perubahan, semua logika fitur tetap sama ...
   const user = message.from;
   const body = message.body;
   const lowerBody = body.toLowerCase();
@@ -359,17 +349,45 @@ client.on("message", async (message) => {
         media.mimetype ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       ) {
+        // =========================================================================
+        // DIUBAH TOTAL: Menggunakan API online ConvertAPI untuk Word ke PDF
+        // =========================================================================
+        if (
+          !CONVERTAPI_SECRET ||
+          CONVERTAPI_SECRET === "MASUKKAN_API_SECRET_ANDA_DISINI"
+        ) {
+          await message.reply(
+            "❌ API Secret untuk ConvertAPI belum dimasukkan ke dalam kode! Fitur ini tidak bisa berjalan."
+          );
+          return;
+        }
         await message.reply(
-          "🔄 Sip, file Word diterima! Lagi diubah jadi PDF via LibreOffice, mohon tunggu..."
+          "🔄 Sip, file Word diterima! Mengirim ke server konversi online..."
         );
-        inputPath = path.join(tempDir, `${timestamp}.docx`);
-        fs.writeFileSync(inputPath, media.data, "base64");
-        outputPath = path.join(tempDir, `${timestamp}.pdf`);
-        const docxBuf = fs.readFileSync(inputPath);
-        const pdfBuf = await libre.convertAsync(docxBuf, ".pdf", undefined);
-        fs.writeFileSync(outputPath, pdfBuf);
-        await client.sendMessage(user, MessageMedia.fromFilePath(outputPath), {
-          caption: "Taraa! ✨ Ini dia file PDF kamu.",
+
+        const formData = new FormData();
+        formData.append("file", Buffer.from(media.data, "base64"), {
+          filename: "input.docx",
+        });
+
+        const response = await axios.post(
+          `https://v2.convertapi.com/convert/docx/to/pdf?Secret=${CONVERTAPI_SECRET}`,
+          formData,
+          {
+            headers: formData.getHeaders(),
+            responseType: "arraybuffer",
+          }
+        );
+
+        const resultBuffer = Buffer.from(response.data);
+        const resultMedia = new MessageMedia(
+          "application/pdf",
+          resultBuffer.toString("base64"),
+          `${timestamp}.pdf`
+        );
+
+        await client.sendMessage(user, resultMedia, {
+          caption: "Taraa! ✨ Ini dia file PDF kamu, dikonversi via API.",
         });
       } else if (
         userChoice === "photo_to_sticker" &&
