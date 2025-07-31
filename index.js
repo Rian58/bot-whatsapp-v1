@@ -350,7 +350,7 @@ client.on("message", async (message) => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       ) {
         // =========================================================================
-        // DIUBAH TOTAL: Menggunakan API online ConvertAPI untuk Word ke PDF
+        // DIUBAH: Menggunakan metode simpan-lalu-kirim yang lebih stabil
         // =========================================================================
         if (
           !CONVERTAPI_SECRET ||
@@ -379,14 +379,12 @@ client.on("message", async (message) => {
           }
         );
 
-        const resultBuffer = Buffer.from(response.data);
-        const resultMedia = new MessageMedia(
-          "application/pdf",
-          resultBuffer.toString("base64"),
-          `${timestamp}.pdf`
-        );
+        // 1. Simpan buffer hasil ke file sementara
+        outputPath = path.join(tempDir, `${timestamp}.pdf`);
+        fs.writeFileSync(outputPath, response.data);
 
-        await client.sendMessage(user, resultMedia, {
+        // 2. Kirim file dari path yang sudah disimpan
+        await client.sendMessage(user, MessageMedia.fromFilePath(outputPath), {
           caption: "Taraa! ✨ Ini dia file PDF kamu, dikonversi via API.",
         });
       } else if (
