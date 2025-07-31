@@ -12,12 +12,15 @@ const Tesseract = require("tesseract.js");
 const QRCode = require("qrcode");
 const jsQR = require("jsqr");
 const { createCanvas, loadImage } = require("canvas");
-const { removeBackground } = require("@imgly/background-removal-node");
+// DIHAPUS: Library remove background lokal yang berat
+// const { removeBackground } = require("@imgly/background-removal-node");
 const axios = require("axios");
 const FormData = require("form-data");
 
 // Ganti dengan API Secret Anda dari convertapi.com
 const CONVERTAPI_SECRET = "CU6YQflHbD9w1keEbkA2AXHnk36vkY9m";
+// BARU: Masukkan API Key BARU Anda dari remove.bg di sini
+const REMOVEBG_API_KEY = "3QqkyJDWjigrBmdWPPdwSa1F";
 
 const userChoices = {};
 
@@ -60,7 +63,7 @@ Pilih salah satu layanan di bawah ini, lalu kirimkan file yang sesuai:
     Buat stiker langsung dari fotomu.
 
 3️⃣. *Foto* ➔ *Hapus Background*
-    Hilangkan background foto (Lokal & Tanpa API!).
+    (Kembali via API, Ringan & Cepat!)
 
 4️⃣. *Gambar* ➔ *Ekstrak Teks (OCR)*
     Ambil semua tulisan dari dalam gambar.
@@ -302,9 +305,6 @@ client.on("message", async (message) => {
 
     try {
       if (userChoice === "pdf_to_word" || userChoice === "word_to_pdf") {
-        // =========================================================================
-        // DIUBAH TOTAL: Logika konversi dokumen disatukan dan diperbaiki
-        // =========================================================================
         if (
           !CONVERTAPI_SECRET ||
           CONVERTAPI_SECRET === "MASUKKAN_API_SECRET_ANDA_DISINI"
@@ -384,16 +384,42 @@ client.on("message", async (message) => {
         userChoice === "remove_background" &&
         media.mimetype.startsWith("image/")
       ) {
+        // =========================================================================
+        // DIUBAH TOTAL: Kembali menggunakan API remove.bg yang ringan
+        // =========================================================================
+        if (
+          !REMOVEBG_API_KEY ||
+          REMOVEBG_API_KEY === "MASUKKAN_API_KEY_BARU_ANDA_DISINI"
+        ) {
+          await message.reply(
+            "❌ API Key untuk remove.bg belum dimasukkan ke dalam kode! Fitur ini tidak bisa berjalan."
+          );
+          return;
+        }
         await message.reply(
-          "🪄 Ajaib! Fotonya lagi diproses secara lokal untuk menghilangkan background. Mohon tunggu..."
+          "🪄 Ajaib! Fotonya lagi dikirim ke server remove.bg, mohon tunggu..."
         );
-        const imageBuffer = Buffer.from(media.data, "base64");
-        const blob = new Blob([imageBuffer], { type: media.mimetype });
-        const result = await removeBackground(blob);
-        const resultBuffer = Buffer.from(await result.arrayBuffer());
+
+        const formData = new FormData();
+        formData.append("image_file", Buffer.from(media.data, "base64"), {
+          filename: "input_image.jpg",
+        });
+        formData.append("size", "auto");
+
+        const response = await axios({
+          method: "post",
+          url: "https://api.remove.bg/v1/removebg",
+          data: formData,
+          responseType: "arraybuffer",
+          headers: {
+            ...formData.getHeaders(),
+            "X-Api-Key": REMOVEBG_API_KEY,
+          },
+        });
+
         const newMedia = new MessageMedia(
           "image/png",
-          resultBuffer.toString("base64"),
+          Buffer.from(response.data).toString("base64"),
           "background-removed.png"
         );
         await client.sendMessage(user, newMedia, {
@@ -451,15 +477,14 @@ client.on("message", async (message) => {
       console.error("--- TERJADI KESALAHAN DETAIL ---");
       if (err.response) {
         console.error("Status Code:", err.response.status);
-        // DIUBAH: Menampilkan pesan error dari server secara detail
         console.error(
           "Pesan Error dari Server:",
           JSON.stringify(err.response.data, null, 2)
         );
         await message.reply(
-          `❌ Gagal! Server konversi memberikan error: ${
+          `❌ Gagal! Server memberikan error: ${
             err.response.data.Error || "Masalah pada API"
-          }. Mohon periksa API Secret Anda.`
+          }. Mohon periksa API Key Anda.`
         );
       } else {
         console.error("Error Umum:", err.message);
