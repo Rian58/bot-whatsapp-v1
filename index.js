@@ -145,35 +145,36 @@ client.on("message", async (message) => {
   const chat = await message.getChat();
 
   // =======================================================
-  // Logika Pemicu Bot yang Diperbaiki
+  // Logika Pemicu Bot yang Diperbaiki Total
   // =======================================================
   const mentions = await message.getMentions();
   const botIsMentioned = mentions.some((contact) => contact.isMe);
-
-  // DIUBAH: Menambahkan angka pilihan menu ke dalam definisi "perintah"
   const commandKeywords = [
     "info ngopi kang?",
     "inpo ngopi kang?",
     "kata katane piye kang?",
   ];
-  const menuSelections = ["1", "2", "3"]; // Angka pilihan menu yang valid
+  const menuSelections = ["1", "2", "3"];
   const isCommand =
     body.startsWith("!") ||
     commandKeywords.includes(lowerBody) ||
     menuSelections.includes(body);
-
   const isPrivateChat = !chat.isGroup;
 
+  // BARU: Cek apakah bot sedang menunggu file dari pengguna ini
+  const isWaitingForFile = userChoices[user] && message.hasMedia;
+
   // Bot hanya akan memproses jika:
-  // 1. Ini adalah chat pribadi (bukan grup)
-  // 2. Bot di-mention di dalam grup
-  // 3. Pesan adalah sebuah perintah yang valid di dalam grup
-  if (!isPrivateChat && !botIsMentioned && !isCommand) {
+  // 1. Ini adalah chat pribadi
+  // 2. Bot di-mention di grup
+  // 3. Pesan adalah perintah valid di grup
+  // 4. Bot sedang menunggu file dari pengguna ini di grup
+  if (!isPrivateChat && !botIsMentioned && !isCommand && !isWaitingForFile) {
     return; // Abaikan pesan jika tidak memenuhi kriteria di grup
   }
 
   // Jika bot di-mention tanpa perintah yang jelas, kirim menu sebagai bantuan
-  if (chat.isGroup && botIsMentioned && !isCommand) {
+  if (chat.isGroup && botIsMentioned && !isCommand && !message.hasMedia) {
     await message.reply(menuText);
     return;
   }
@@ -274,7 +275,6 @@ client.on("message", async (message) => {
   if (message.hasMedia) {
     const userChoiceData = userChoices[user];
     if (!userChoiceData || !userChoiceData.choice) {
-      // Abaikan file yang dikirim jika tidak ada pilihan aktif, kecuali di chat pribadi
       if (isPrivateChat) {
         await message.reply(
           "Eits, sebelum kirim file, pilih dulu mau konversi apa dengan ketik *!start* ya! 😉"
@@ -337,7 +337,6 @@ client.on("message", async (message) => {
           );
         }
       } else {
-        // Abaikan jika file tidak cocok dengan pilihan
         if (isPrivateChat) {
           await message.reply(
             "❌ Oops! File yang Anda kirim tidak sesuai dengan pilihan di menu. Coba lagi ya!"
