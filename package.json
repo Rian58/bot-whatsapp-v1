@@ -1,5 +1,5 @@
 {
-  "name": "bot_wa_js",
+  "name": "bot-wa-js",
   "version": "1.0.0",
   "description": "Bot WhatsApp Serbaguna",
   "main": "index.js",
@@ -12,15 +12,13 @@
     "bot",
     "nodejs"
   ],
-  "author": "Hens.dev",
+  "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.7.2",
     "canvas": "^2.11.2",
-    "form-data": "^4.0.0",
     "jsqr": "^1.4.0",
-    "libreoffice-convert": "^1.5.1",
     "qrcode": "^1.5.3",
     "qrcode-terminal": "^0.12.0",
     "tesseract.js": "^5.1.0",
