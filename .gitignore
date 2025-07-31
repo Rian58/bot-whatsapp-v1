@@ -2,3 +2,4 @@ node_modules
 sessions/
 temp/
 *.log
+.wwebjs_cache/
