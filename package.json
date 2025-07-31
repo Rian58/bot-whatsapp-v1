@@ -1,0 +1,30 @@
+{
+  "name": "bot_wa_js",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp Serbaguna",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "nodejs"
+  ],
+  "author": "Hens.dev",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@imgly/background-removal-node": "^1.4.3",
+    "axios": "^1.7.2",
+    "canvas": "^2.11.2",
+    "form-data": "^4.0.0",
+    "jsqr": "^1.4.0",
+    "libreoffice-convert": "^1.5.1",
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "tesseract.js": "^5.1.0",
+    "whatsapp-web.js": "^1.23.0"
+  }
+}
