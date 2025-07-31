@@ -12,15 +12,12 @@ const Tesseract = require("tesseract.js");
 const QRCode = require("qrcode");
 const jsQR = require("jsqr");
 const { createCanvas, loadImage } = require("canvas");
-// DIHAPUS: Library remove background lokal yang berat
-// const { removeBackground } = require("@imgly/background-removal-node");
+const { removeBackground } = require("@imgly/background-removal-node");
 const axios = require("axios");
 const FormData = require("form-data");
 
 // Ganti dengan API Secret Anda dari convertapi.com
 const CONVERTAPI_SECRET = "CU6YQflHbD9w1keEbkA2AXHnk36vkY9m";
-// BARU: Masukkan API Key BARU Anda dari remove.bg di sini
-const REMOVEBG_API_KEY = "3QqkyJDWjigrBmdWPPdwSa1F";
 
 const userChoices = {};
 
@@ -63,7 +60,7 @@ Pilih salah satu layanan di bawah ini, lalu kirimkan file yang sesuai:
     Buat stiker langsung dari fotomu.
 
 3️⃣. *Foto* ➔ *Hapus Background*
-    (Kembali via API, Ringan & Cepat!)
+    Hilangkan background foto (Lokal & Tanpa API!).
 
 4️⃣. *Gambar* ➔ *Ekstrak Teks (OCR)*
     Ambil semua tulisan dari dalam gambar.
@@ -301,10 +298,15 @@ client.on("message", async (message) => {
     const media = await message.downloadMedia();
     if (!media || !media.data) return;
 
+    let inputPath = "";
+    let outputPath = "";
     const timestamp = Date.now();
 
     try {
-      if (userChoice === "pdf_to_word" || userChoice === "word_to_pdf") {
+      if (
+        userChoice === "pdf_to_word" &&
+        media.mimetype === "application/pdf"
+      ) {
         if (
           !CONVERTAPI_SECRET ||
           CONVERTAPI_SECRET === "MASUKKAN_API_SECRET_ANDA_DISINI"
@@ -314,60 +316,77 @@ client.on("message", async (message) => {
           );
           return;
         }
-
-        const isPdfToWord = userChoice === "pdf_to_word";
-        const fromFormat = isPdfToWord ? "pdf" : "docx";
-        const toFormat = isPdfToWord ? "docx" : "pdf";
-
-        if (
-          (isPdfToWord && media.mimetype !== "application/pdf") ||
-          (!isPdfToWord &&
-            media.mimetype !==
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        ) {
-          await message.reply(
-            "❌ Oops! File yang Anda kirim tidak sesuai dengan pilihan di menu. Coba lagi ya!"
-          );
-          return;
-        }
-
         await message.reply(
-          `🔄 Oke, file ${fromFormat.toUpperCase()} diterima! Mengirim ke server konversi online...`
+          "🔄 Oke, file PDF diterima! Mengirim ke server konversi online, mohon tunggu..."
         );
 
         const formData = new FormData();
         formData.append("file", Buffer.from(media.data, "base64"), {
-          filename: `input.${fromFormat}`,
+          filename: "input.pdf",
         });
 
         const response = await axios.post(
-          `https://v2.convertapi.com/convert/${fromFormat}/to/${toFormat}?Secret=${CONVERTAPI_SECRET}`,
+          `https://v2.convertapi.com/convert/pdf/to/docx?Secret=${CONVERTAPI_SECRET}`,
           formData,
           {
             headers: formData.getHeaders(),
+            responseType: "arraybuffer",
           }
         );
 
-        if (
-          response.data &&
-          response.data.Files &&
-          response.data.Files[0] &&
-          response.data.Files[0].Url
-        ) {
-          const fileUrl = response.data.Files[0].Url;
-          const resultMedia = await MessageMedia.fromUrl(fileUrl, {
-            unsafeMime: true,
-          });
-          resultMedia.filename = `${timestamp}.${toFormat}`;
+        const resultBuffer = Buffer.from(response.data);
+        const resultMedia = new MessageMedia(
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          resultBuffer.toString("base64"),
+          `${timestamp}.docx`
+        );
 
-          await client.sendMessage(user, resultMedia, {
-            caption: `Taraa! ✨ Ini dia file ${toFormat.toUpperCase()} kamu, dikonversi via API.`,
-          });
-        } else {
-          throw new Error(
-            "Respons dari ConvertAPI tidak berisi URL file yang valid."
+        await client.sendMessage(user, resultMedia, {
+          caption: "Taraa! ✨ Ini dia file Word kamu, dikonversi via API.",
+        });
+      } else if (
+        userChoice === "word_to_pdf" &&
+        media.mimetype ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ) {
+        // =========================================================================
+        // DIUBAH: Menggunakan metode simpan-lalu-kirim yang lebih stabil
+        // =========================================================================
+        if (
+          !CONVERTAPI_SECRET ||
+          CONVERTAPI_SECRET === "MASUKKAN_API_SECRET_ANDA_DISINI"
+        ) {
+          await message.reply(
+            "❌ API Secret untuk ConvertAPI belum dimasukkan ke dalam kode! Fitur ini tidak bisa berjalan."
           );
+          return;
         }
+        await message.reply(
+          "🔄 Sip, file Word diterima! Mengirim ke server konversi online..."
+        );
+
+        const formData = new FormData();
+        formData.append("file", Buffer.from(media.data, "base64"), {
+          filename: "input.docx",
+        });
+
+        const response = await axios.post(
+          `https://v2.convertapi.com/convert/docx/to/pdf?Secret=${CONVERTAPI_SECRET}`,
+          formData,
+          {
+            headers: formData.getHeaders(),
+            responseType: "arraybuffer",
+          }
+        );
+
+        // 1. Simpan buffer hasil ke file sementara
+        outputPath = path.join(tempDir, `${timestamp}.pdf`);
+        fs.writeFileSync(outputPath, response.data);
+
+        // 2. Kirim file dari path yang sudah disimpan
+        await client.sendMessage(user, MessageMedia.fromFilePath(outputPath), {
+          caption: "Taraa! ✨ Ini dia file PDF kamu, dikonversi via API.",
+        });
       } else if (
         userChoice === "photo_to_sticker" &&
         media.mimetype.startsWith("image/")
@@ -384,42 +403,16 @@ client.on("message", async (message) => {
         userChoice === "remove_background" &&
         media.mimetype.startsWith("image/")
       ) {
-        // =========================================================================
-        // DIUBAH TOTAL: Kembali menggunakan API remove.bg yang ringan
-        // =========================================================================
-        if (
-          !REMOVEBG_API_KEY ||
-          REMOVEBG_API_KEY === "MASUKKAN_API_KEY_BARU_ANDA_DISINI"
-        ) {
-          await message.reply(
-            "❌ API Key untuk remove.bg belum dimasukkan ke dalam kode! Fitur ini tidak bisa berjalan."
-          );
-          return;
-        }
         await message.reply(
-          "🪄 Ajaib! Fotonya lagi dikirim ke server remove.bg, mohon tunggu..."
+          "🪄 Ajaib! Fotonya lagi diproses secara lokal untuk menghilangkan background. Mohon tunggu..."
         );
-
-        const formData = new FormData();
-        formData.append("image_file", Buffer.from(media.data, "base64"), {
-          filename: "input_image.jpg",
-        });
-        formData.append("size", "auto");
-
-        const response = await axios({
-          method: "post",
-          url: "https://api.remove.bg/v1/removebg",
-          data: formData,
-          responseType: "arraybuffer",
-          headers: {
-            ...formData.getHeaders(),
-            "X-Api-Key": REMOVEBG_API_KEY,
-          },
-        });
-
+        const imageBuffer = Buffer.from(media.data, "base64");
+        const blob = new Blob([imageBuffer], { type: media.mimetype });
+        const result = await removeBackground(blob);
+        const resultBuffer = Buffer.from(await result.arrayBuffer());
         const newMedia = new MessageMedia(
           "image/png",
-          Buffer.from(response.data).toString("base64"),
+          resultBuffer.toString("base64"),
           "background-removed.png"
         );
         await client.sendMessage(user, newMedia, {
@@ -477,22 +470,14 @@ client.on("message", async (message) => {
       console.error("--- TERJADI KESALAHAN DETAIL ---");
       if (err.response) {
         console.error("Status Code:", err.response.status);
-        console.error(
-          "Pesan Error dari Server:",
-          JSON.stringify(err.response.data, null, 2)
-        );
-        await message.reply(
-          `❌ Gagal! Server memberikan error: ${
-            err.response.data.Error || "Masalah pada API"
-          }. Mohon periksa API Key Anda.`
-        );
+        console.error("Pesan Error:", err.response.data.toString());
       } else {
         console.error("Error Umum:", err.message);
-        await message.reply(
-          `❌ Aduh, maaf! Terjadi error: ${err.message}. Coba lagi nanti ya.`
-        );
       }
       console.error("--- AKHIR DARI DETAIL KESALAHAN ---");
+      await message.reply(
+        "❌ Aduh, maaf! Sepertinya ada error di tengah jalan. Coba lagi nanti ya."
+      );
     }
 
     if (
