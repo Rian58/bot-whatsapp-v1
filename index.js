@@ -301,12 +301,9 @@ client.on("message", async (message) => {
     const timestamp = Date.now();
 
     try {
-      if (
-        userChoice === "pdf_to_word" &&
-        media.mimetype === "application/pdf"
-      ) {
+      if (userChoice === "pdf_to_word" || userChoice === "word_to_pdf") {
         // =========================================================================
-        // DIUBAH: Menggunakan metode URL download yang lebih stabil
+        // DIUBAH TOTAL: Logika konversi dokumen disatukan dan diperbaiki
         // =========================================================================
         if (
           !CONVERTAPI_SECRET ||
@@ -317,81 +314,40 @@ client.on("message", async (message) => {
           );
           return;
         }
-        await message.reply(
-          "🔄 Oke, file PDF diterima! Mengirim ke server konversi online, mohon tunggu..."
-        );
 
-        const formData = new FormData();
-        formData.append("file", Buffer.from(media.data, "base64"), {
-          filename: "input.pdf",
-        });
+        const isPdfToWord = userChoice === "pdf_to_word";
+        const fromFormat = isPdfToWord ? "pdf" : "docx";
+        const toFormat = isPdfToWord ? "docx" : "pdf";
 
-        // Meminta respons berupa JSON, bukan file langsung
-        const response = await axios.post(
-          `https://v2.convertapi.com/convert/pdf/to/docx?Secret=${CONVERTAPI_SECRET}`,
-          formData,
-          {
-            headers: formData.getHeaders(),
-          }
-        );
-
-        // Validasi respons
         if (
-          response.data &&
-          response.data.Files &&
-          response.data.Files[0] &&
-          response.data.Files[0].Url
-        ) {
-          const fileUrl = response.data.Files[0].Url;
-          const resultMedia = await MessageMedia.fromUrl(fileUrl, {
-            unsafeMime: true,
-          });
-          resultMedia.filename = `${timestamp}.docx`;
-
-          await client.sendMessage(user, resultMedia, {
-            caption: "Taraa! ✨ Ini dia file Word kamu, dikonversi via API.",
-          });
-        } else {
-          throw new Error(
-            "Respons dari ConvertAPI tidak berisi URL file yang valid."
-          );
-        }
-      } else if (
-        userChoice === "word_to_pdf" &&
-        media.mimetype ===
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      ) {
-        // =========================================================================
-        // DIUBAH: Menggunakan metode URL download yang lebih stabil
-        // =========================================================================
-        if (
-          !CONVERTAPI_SECRET ||
-          CONVERTAPI_SECRET === "MASUKKAN_API_SECRET_ANDA_DISINI"
+          (isPdfToWord && media.mimetype !== "application/pdf") ||
+          (!isPdfToWord &&
+            media.mimetype !==
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         ) {
           await message.reply(
-            "❌ API Secret untuk ConvertAPI belum dimasukkan ke dalam kode! Fitur ini tidak bisa berjalan."
+            "❌ Oops! File yang Anda kirim tidak sesuai dengan pilihan di menu. Coba lagi ya!"
           );
           return;
         }
+
         await message.reply(
-          "🔄 Sip, file Word diterima! Mengirim ke server konversi online..."
+          `🔄 Oke, file ${fromFormat.toUpperCase()} diterima! Mengirim ke server konversi online...`
         );
 
         const formData = new FormData();
         formData.append("file", Buffer.from(media.data, "base64"), {
-          filename: "input.docx",
+          filename: `input.${fromFormat}`,
         });
 
-        // Meminta respons berupa JSON
         const response = await axios.post(
-          `https://v2.convertapi.com/convert/docx/to/pdf?Secret=${CONVERTAPI_SECRET}`,
+          `https://v2.convertapi.com/convert/${fromFormat}/to/${toFormat}?Secret=${CONVERTAPI_SECRET}`,
           formData,
           {
             headers: formData.getHeaders(),
           }
         );
 
-        // Validasi respons
         if (
           response.data &&
           response.data.Files &&
@@ -402,10 +358,10 @@ client.on("message", async (message) => {
           const resultMedia = await MessageMedia.fromUrl(fileUrl, {
             unsafeMime: true,
           });
-          resultMedia.filename = `${timestamp}.pdf`;
+          resultMedia.filename = `${timestamp}.${toFormat}`;
 
           await client.sendMessage(user, resultMedia, {
-            caption: "Taraa! ✨ Ini dia file PDF kamu, dikonversi via API.",
+            caption: `Taraa! ✨ Ini dia file ${toFormat.toUpperCase()} kamu, dikonversi via API.`,
           });
         } else {
           throw new Error(
@@ -495,14 +451,23 @@ client.on("message", async (message) => {
       console.error("--- TERJADI KESALAHAN DETAIL ---");
       if (err.response) {
         console.error("Status Code:", err.response.status);
-        console.error("Pesan Error:", err.response.data.toString());
+        // DIUBAH: Menampilkan pesan error dari server secara detail
+        console.error(
+          "Pesan Error dari Server:",
+          JSON.stringify(err.response.data, null, 2)
+        );
+        await message.reply(
+          `❌ Gagal! Server konversi memberikan error: ${
+            err.response.data.Error || "Masalah pada API"
+          }. Mohon periksa API Secret Anda.`
+        );
       } else {
         console.error("Error Umum:", err.message);
+        await message.reply(
+          `❌ Aduh, maaf! Terjadi error: ${err.message}. Coba lagi nanti ya.`
+        );
       }
       console.error("--- AKHIR DARI DETAIL KESALAHAN ---");
-      await message.reply(
-        "❌ Aduh, maaf! Sepertinya ada error di tengah jalan. Coba lagi nanti ya."
-      );
     }
 
     if (
