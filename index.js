@@ -41,7 +41,7 @@ const FUN_FACTS = [
 ];
 
 const menuText = `
-🤖 *Halo! Ini Menu Ajaib Bot Stabil* ✨
+🤖 *Halo! Ini Menu Ajaib Bot By Henss.Dev* ✨
 
 Pilih salah satu layanan di bawah ini, lalu kirimkan file yang sesuai:
 
