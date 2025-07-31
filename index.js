@@ -145,15 +145,23 @@ client.on("message", async (message) => {
   const chat = await message.getChat();
 
   // =======================================================
-  // DIUBAH TOTAL: Logika Pemicu Bot
+  // Logika Pemicu Bot yang Diperbaiki
   // =======================================================
   const mentions = await message.getMentions();
   const botIsMentioned = mentions.some((contact) => contact.isMe);
+
+  // DIUBAH: Menambahkan angka pilihan menu ke dalam definisi "perintah"
+  const commandKeywords = [
+    "info ngopi kang?",
+    "inpo ngopi kang?",
+    "kata katane piye kang?",
+  ];
+  const menuSelections = ["1", "2", "3"]; // Angka pilihan menu yang valid
   const isCommand =
     body.startsWith("!") ||
-    lowerBody === "info ngopi kang?" ||
-    lowerBody === "inpo ngopi kang?" ||
-    lowerBody === "kata katane piye kang?";
+    commandKeywords.includes(lowerBody) ||
+    menuSelections.includes(body);
+
   const isPrivateChat = !chat.isGroup;
 
   // Bot hanya akan memproses jika:
@@ -164,7 +172,7 @@ client.on("message", async (message) => {
     return; // Abaikan pesan jika tidak memenuhi kriteria di grup
   }
 
-  // Jika bot di-mention tanpa perintah, kirim menu sebagai bantuan
+  // Jika bot di-mention tanpa perintah yang jelas, kirim menu sebagai bantuan
   if (chat.isGroup && botIsMentioned && !isCommand) {
     await message.reply(menuText);
     return;
